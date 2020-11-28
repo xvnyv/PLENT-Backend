@@ -123,7 +123,7 @@ class Events(Resource):
     def get(self):
         upcoming_events = []
         current_date = datetime.datetime.today()
-        for event in mongo.db.event.find({}):
+        for event in mongo.db.event.find({}, {'_id': 1, 'imageUrl': 1, 'title': 1, 'date': 1, 'startTime': 1, 'endTime': 1, 'type': 1}):
             event_date = datetime.datetime(event['date'][2], event['date'][1], event['date'][0])
             event_date = event_date.replace(hour=event['startTime'][0], minute=event['startTime'][1])
             event['id'] = str(event['_id'])
