@@ -36,9 +36,12 @@ event_put_args.add_argument('telegram', type=str)
 event_put_args.add_argument('id', type=str)
 event_put_args.add_argument('creatorId', type=str)
 event_put_args.add_argument('type', type=str)
-event_put_args.add_argument('sign_up', type=bool)
 event_put_args.add_argument('imageUrl', type=str)
 
+event_user_put_args = reqparse.RequestParser()
+event_user_put_args.add_argument('event_id', type=str)
+event_user_put_args.add_argument('user_id', type=str)
+event_user_put_args.add_argument('sign_up', type=bool)
 
 class User(Resource):
     def post(self):
@@ -74,16 +77,13 @@ class Event(Resource):
         print(args)
         if len(list(mongo.db.event.find({'title': args['title'], 'date': args['date'], 'creatorId': args['creatorId']}))) == 0:
             args['attendees'] = []
-            del args['sign_up']
-            # args['startTime'] = 0 if args['startTime'] == None else int(args['startTime'])
-            # args['endTime'] = 0 if args['endTime'] == None else int(args['endTime'])
             result = mongo.db.event.insert_one(args)
             
             print(str(result.inserted_id))
             return {'id': str(result.inserted_id)}
 
     def put(self):
-        args = event_put_args.parse_args()
+        args = event_user_put_args.parse_args()
         operation = "$pull"
         if args['sign_up']:
             operation = "$addToSet"
