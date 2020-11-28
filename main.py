@@ -1,4 +1,5 @@
 import os
+import pytz
 import datetime
 
 from flask import Flask, request
@@ -27,9 +28,9 @@ user_put_args.add_argument('id', type=str)
 
 event_put_args = reqparse.RequestParser()
 event_put_args.add_argument('title', type=str)
-event_put_args.add_argument('date', type=list,  location='json')
-event_put_args.add_argument('startTime', type=list, location='json')
-event_put_args.add_argument('endTime', type=list, location='json')
+event_put_args.add_argument('date', type=str)
+event_put_args.add_argument('startTime', type=str)
+event_put_args.add_argument('endTime', type=str)
 event_put_args.add_argument('location', type=str)
 event_put_args.add_argument('description', type=str)
 event_put_args.add_argument('telegram', type=str)
@@ -42,6 +43,9 @@ event_user_put_args = reqparse.RequestParser()
 event_user_put_args.add_argument('event_id', type=str)
 event_user_put_args.add_argument('user_id', type=str)
 event_user_put_args.add_argument('sign_up', type=bool)
+
+def pad_zero(digit):
+    return '0' if len(digit) == 1 else ''
 
 class User(Resource):
     def post(self):
@@ -74,7 +78,9 @@ class User(Resource):
 class Event(Resource):
     def post(self):
         args = event_put_args.parse_args()
-        print(args)
+        args['date'] = [int(d) for d in args['date'].split('-')[::-1]]
+        args['startTime'] = [int(st) for st in args['startTime'].split(':')]
+        args['endTime'] = [int(et) for et in args['endTime'].split(':')]
         if len(list(mongo.db.event.find({'title': args['title'], 'date': args['date'], 'creatorId': args['creatorId']}))) == 0:
             args['attendees'] = []
             result = mongo.db.event.insert_one(args)
@@ -115,6 +121,9 @@ class Event(Resource):
                     break
 
             del event['_id']
+            event['date'] = str(event['date'][2]) + '-' + pad_zero(str(event['date'][1])) + str(event['date'][1]) + '-' + pad_zero(str(event['date'][0])) + str(event['date'][0])
+            event['startTime'] = pad_zero(str(event['startTime'][0])) + str(event['startTime'][0]) + ':' + pad_zero(str(event['startTime'][1])) + str(event['startTime'][1])
+            event['endTime'] = pad_zero(str(event['endTime'][0])) + str(event['endTime'][0]) + ':' + pad_zero(str(event['endTime'][1])) + str(event['endTime'][1])
 
         print(event)
         return event
@@ -122,13 +131,16 @@ class Event(Resource):
 class Events(Resource):
     def get(self):
         upcoming_events = []
-        current_date = datetime.datetime.today()
+        current_date = datetime.datetime.now(pytz.timezone('Asia/Singapore'))
         for event in mongo.db.event.find({}, {'_id': 1, 'imageUrl': 1, 'title': 1, 'date': 1, 'startTime': 1, 'endTime': 1, 'type': 1}):
-            event_date = datetime.datetime(event['date'][2], event['date'][1], event['date'][0])
-            event_date = event_date.replace(hour=event['startTime'][0], minute=event['startTime'][1])
+            event_date = datetime.datetime(event['date'][2], event['date'][1], event['date'][0], event['startTime'][0], event['startTime'][1])
+            event_date = event_date.astimezone(pytz.timezone('Asia/Singapore'))
             event['id'] = str(event['_id'])
             del event['_id']
             if event_date >= current_date: 
+                event['date'] = str(event['date'][2]) + '-' + pad_zero(str(event['date'][1])) + str(event['date'][1]) + '-' + pad_zero(str(event['date'][0])) + str(event['date'][0])
+                event['startTime'] = pad_zero(str(event['startTime'][0])) + str(event['startTime'][0]) + ':' + pad_zero(str(event['startTime'][1])) + str(event['startTime'][1])
+                event['endTime'] = pad_zero(str(event['endTime'][0])) + str(event['endTime'][0]) + ':' + pad_zero(str(event['endTime'][1])) + str(event['endTime'][1])
                 upcoming_events.append(event)
 
         return upcoming_events
