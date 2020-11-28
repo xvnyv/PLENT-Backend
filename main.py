@@ -36,7 +36,7 @@ event_put_args.add_argument('telegram', type=str)
 event_put_args.add_argument('id', type=str)
 event_put_args.add_argument('creatorId', type=str)
 event_put_args.add_argument('type', type=str)
-# event_put_args.add_argument('sign_up', type=bool)
+event_put_args.add_argument('sign_up', type=bool)
 event_put_args.add_argument('imageUrl', type=str)
 
 
@@ -74,6 +74,7 @@ class Event(Resource):
         print(args)
         if len(list(mongo.db.event.find({'title': args['title'], 'date': args['date'], 'creatorId': args['creatorId']}))) == 0:
             args['attendees'] = []
+            del args['sign_up']
             # args['startTime'] = 0 if args['startTime'] == None else int(args['startTime'])
             # args['endTime'] = 0 if args['endTime'] == None else int(args['endTime'])
             result = mongo.db.event.insert_one(args)
