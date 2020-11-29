@@ -47,10 +47,18 @@ event_user_put_args.add_argument('sign_up', type=bool)
 def pad_zero(digit):
     return '0' if len(digit) == 1 else ''
 
+def format_date_time(event):
+    event['date'] = str(event['date'][2]) + '-' + pad_zero(str(event['date'][1])) + str(event['date'][1]) + '-' + pad_zero(str(event['date'][0])) + str(event['date'][0])
+    event['startTime'] = pad_zero(str(event['startTime'][0])) + str(event['startTime'][0]) + ':' + pad_zero(str(event['startTime'][1])) + str(event['startTime'][1])
+    event['endTime'] = pad_zero(str(event['endTime'][0])) + str(event['endTime'][0]) + ':' + pad_zero(str(event['endTime'][1])) + str(event['endTime'][1])
+
+    return event
+
 class User(Resource):
     def post(self):
         args = user_put_args.parse_args()
         if len(list(mongo.db.user.find({'studentId': args['studentId']}))) == 0:
+            args['events'] = []
             result = mongo.db.user.insert_one(args)
             print(result.inserted_id)
 
@@ -121,9 +129,7 @@ class Event(Resource):
                     break
 
             del event['_id']
-            event['date'] = str(event['date'][2]) + '-' + pad_zero(str(event['date'][1])) + str(event['date'][1]) + '-' + pad_zero(str(event['date'][0])) + str(event['date'][0])
-            event['startTime'] = pad_zero(str(event['startTime'][0])) + str(event['startTime'][0]) + ':' + pad_zero(str(event['startTime'][1])) + str(event['startTime'][1])
-            event['endTime'] = pad_zero(str(event['endTime'][0])) + str(event['endTime'][0]) + ':' + pad_zero(str(event['endTime'][1])) + str(event['endTime'][1])
+            event = format_date_time(event)
 
         print(event)
         return event
@@ -138,9 +144,7 @@ class Events(Resource):
             event['id'] = str(event['_id'])
             del event['_id']
             if event_date >= current_date: 
-                event['date'] = str(event['date'][2]) + '-' + pad_zero(str(event['date'][1])) + str(event['date'][1]) + '-' + pad_zero(str(event['date'][0])) + str(event['date'][0])
-                event['startTime'] = pad_zero(str(event['startTime'][0])) + str(event['startTime'][0]) + ':' + pad_zero(str(event['startTime'][1])) + str(event['startTime'][1])
-                event['endTime'] = pad_zero(str(event['endTime'][0])) + str(event['endTime'][0]) + ':' + pad_zero(str(event['endTime'][1])) + str(event['endTime'][1])
+                event = format_date_time(event)
                 upcoming_events.append(event)
 
         return upcoming_events
@@ -148,16 +152,26 @@ class Events(Resource):
 class Calendar(Resource):
     def get(self):
         user_id = request.args.get("user_id")
-        date = request.args.get("date")
+        start_date = [int(d) for d in request.args.get("start_date").split('-')]
+        start_date = datetime.date(start_date[0], start_date[1], start_date[2])
 
-        user = mongo.db.user.findOne({'_id': ObjectId(user_id)})
+        end_date = [int(d) for d in request.args.get("end_date").split('-')]
+        end_date = datetime.date(end_date[0], end_date[1], end_date[2])
+
+        user = mongo.db.user.find_one({'_id': ObjectId(user_id)})
         events = []
 
-        for ev in mongo.db.event.find({'_id': {'$in': user['events']}, 'date': [int(date[:2]), int(date[2:4]), int(date[4:])]}):
-            ev['id'] = str(ev['_id'])
-            del ev['_id']
+        for ev in mongo.db.event.find({'_id': {'$in': user['events']}}):
+            event_date = datetime.date(ev['date'][2], ev['date'][1], ev['date'][0])
 
-            events.append(ev)
+            if event_date >= start_date and event_date <= end_date:
+                ev['id'] = str(ev['_id'])
+                del ev['_id']
+                ev = format_date_time(ev)
+                ev['attendees'] = [str(a) for a in ev['attendees']]
+
+                events.append(ev)
+                print(ev)
 
         return events
 
@@ -169,17 +183,38 @@ class Organised(Resource):
 class Participants(Resource):
     def get(self):
         event_id = request.args.get("event_id")
-        event = mongo.db.event.findOne({"_id": ObjectId(event_id)})
-
+        event = mongo.db.event.find_one({"_id": ObjectId(event_id)})
+        print(event_id)
         users = []
 
         for usr in mongo.db.user.find({'_id': {'$in': event['attendees']}}):
             usr['id'] = str(usr['_id'])
             del usr['_id']
 
+            usr['events'] = [str(ev) for ev in usr['events']]
+
             users.append(usr)
 
+        print(users)
+
         return users
+
+class Populate(Resource):
+    def get(self):
+        users = mongo.db.user.find({})
+        events = mongo.db.event.find({})
+
+        for user in users:
+            if 'events' in user.keys() and len(user['events']) < 4:
+                mongo.db.user.update_one({'_id': user['_id']}, {'$set': {'events': [events[0]['_id'], events[3]['_id'], events[2]['_id']]}})
+                events[0]['attendees'].append(user['_id'])
+                events[2]['attendees'].append(user['_id'])
+                events[3]['attendees'].append(user['_id'])
+
+        mongo.db.event.update_one({'_id': events[0]['_id']}, {'$set': {'attendees': events[0]['attendees']}})
+        mongo.db.event.update_one({'_id': events[2]['_id']}, {'$set': {'attendees': events[1]['attendees']}})
+        mongo.db.event.update_one({'_id': events[3]['_id']}, {'$set': {'attendees': events[2]['attendees']}})
+    
 
 api.add_resource(User, '/user')
 api.add_resource(Event, '/event')
@@ -187,8 +222,9 @@ api.add_resource(Events, '/events')
 api.add_resource(Calendar, '/calendar')
 api.add_resource(Organised, '/organised')
 api.add_resource(Participants, '/participants')
+api.add_resource(Populate, '/populate')
 
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    app.run(debug=True, host='0.0.0.0', port=port)
+    app.run(debug=True, port=port)
