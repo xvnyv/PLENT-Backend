@@ -59,17 +59,24 @@ class User(Resource):
         args = user_put_args.parse_args()
         if len(list(mongo.db.user.find({'studentId': args['studentId']}))) == 0:
             args['events'] = []
+            organisers_f = open(f'{os.path.dirname(os.path.abspath(__file__))}\\organisers.txt', 'r')
+            organisers = [l.strip() for l in organisers_f.readlines()]
+            args['permission'] = 0
+
+            if args['studentId'] in organisers:
+                args['permission'] = 1
+                args['organisedEvents'] = []
+
             result = mongo.db.user.insert_one(args)
             print(result.inserted_id)
 
-            return {'id': str(result.inserted_id), 'permission': 0}
+            return {'id': str(result.inserted_id), 'permission': args['permission']}
 
-    # def put(self):
-    #     args = user_put_args.parse_args()
-    #     user = mongo.db.user.find({'_id': ObjectId(args['id'])})
-    #     if user != None:
-    #         user['name'] = args['name']
-    #         user['student']
+    def put(self):
+        args = user_put_args.parse_args()
+        mongo.db.user.update_one({'_id': ObjectId(args['id'])}, {'$set': {'email': args['email'], 'name': args['name'], 'studentId': args['studentId']}})
+
+        return {'success': True}
 
     def get(self):
         email = request.args.get('email')
@@ -79,6 +86,8 @@ class User(Resource):
             del user['_id']
 
             user['events'] = [str(e) for e in user['events']]
+            if 'organisedEvents' in user.keys():
+                user['organisedEvents'] = [str(e) for e in user['organisedEvents']]
 
         return user
 
@@ -92,6 +101,7 @@ class Event(Resource):
         if len(list(mongo.db.event.find({'title': args['title'], 'date': args['date'], 'creatorId': args['creatorId']}))) == 0:
             args['attendees'] = []
             result = mongo.db.event.insert_one(args)
+            mongo.db.user.update_one({'_id': ObjectId(args['creatorId'])}, {'$push': {'organisedEvents': result.inserted_id}})
             
             print(str(result.inserted_id))
             return {'id': str(result.inserted_id)}
@@ -113,25 +123,35 @@ class Event(Resource):
     def get(self):
         event_id = request.args.get('event_id')
         user_id = request.args.get('user_id')
-        event = mongo.db.event.find_one({'_id': ObjectId(event_id)})
+        event = mongo.db.event.find_one({'_id': ObjectId(event_id)}, {'creatorId': 0, 'attendees': 0})
         if event != None:
-            event['id'] = str(event['_id'])
-            event['attendees'] = [str(a) for a in event['attendees']]
-            
+            event['id'] = str(event['_id'])            
 
             event['clashString'] = ''
+            event_start_time = datetime.datetime(event['date'][2], event['date'][1], event['date'][0], event['startTime'][0], event['startTime'][1])
+            event_end_time = datetime.datetime(event['date'][2], event['date'][1], event['date'][0], event['endTime'][0], event['endTime'][1])
+        
             user = mongo.db.user.find_one({'_id': ObjectId(user_id)})
-            print(user)
-            print(event)
+            print(event_start_time)
+            print(event_end_time)
+            print('====================')
             for ev in mongo.db.event.find({'_id' : {'$in':user['events'], '$ne': event['_id']}}):
-                if ev['date'] == event['date'] and (ev['startTime'] >= event['startTime'] and ev['startTime'] <= event['endTime']) or (ev['endTime'] >= event['startTime'] and ev['endTime'] <= event['endTime']):
-                    event['clashString'] = f'You have "{ev["title"]}" at {ev["startTime"]} on {ev["date"]}'
+                cur_ev_start_time = datetime.datetime(ev['date'][2], ev['date'][1], ev['date'][0], ev['startTime'][0], ev['startTime'][1])
+                cur_ev_end_time = datetime.datetime(ev['date'][2], ev['date'][1], ev['date'][0], ev['endTime'][0], ev['endTime'][1])
+                
+                print(cur_ev_start_time)
+                print(cur_ev_end_time)
+                
+                if event['date'] == ev['date'] and ((cur_ev_start_time <= event_start_time and event_start_time <= cur_ev_end_time) or event['date'] == ev['date'] and (cur_ev_start_time <= event_end_time and cur_ev_end_time >= event_end_time)):
+                    suffix = 'st' if cur_ev_end_time.day == 1 else 'nd' if cur_ev_end_time.day == 2 else 'rd' if cur_ev_end_time.day == 3 else 'th'
+                    event['clashString'] = f'You have "{ev["title"]}" from {cur_ev_start_time.strftime("%#I.%M%p")} to {cur_ev_end_time.strftime("%#I.%M%p")} on {cur_ev_start_time.strftime("%b %#d")}{suffix}'
                     break
+                    
 
             del event['_id']
             event = format_date_time(event)
 
-        print(event)
+        # print(event)
         return event
 
 class Events(Resource):
@@ -177,8 +197,29 @@ class Calendar(Resource):
 
 class Organised(Resource):
     def get(self):
-        # add new field for plannedEvents or sth like that so that you can distinguish between events user is attending vs events users are organising
-        pass
+        user_id = request.args.get("user_id")
+        user = mongo.db.user.find_one({'_id': ObjectId(user_id)})
+        events = []
+        current_date = datetime.datetime.now(pytz.timezone('Asia/Singapore'))
+
+        if user == None:
+            return;
+        
+        if user['permission'] == 1:
+            for ev in mongo.db.event.find({'_id': {'$in': user['organisedEvents']}}):
+                event_date = datetime.datetime(ev['date'][2], ev['date'][1], ev['date'][0], ev['startTime'][0], ev['startTime'][1])
+                event_date = event_date.astimezone(pytz.timezone('Asia/Singapore'))
+                ev['id'] = str(ev['_id'])
+                del ev['_id']
+                ev['creatorId'] = str(ev['creatorId'])
+                if event_date >= current_date: 
+                    ev = format_date_time(ev)
+                    ev['attendees'] = [str(a) for a in ev['attendees']]
+                    events.append(ev)
+                    
+        print(events)
+        return events
+
 
 class Participants(Resource):
     def get(self):
@@ -187,7 +228,7 @@ class Participants(Resource):
         print(event_id)
         users = []
 
-        for usr in mongo.db.user.find({'_id': {'$in': event['attendees']}}):
+        for usr in mongo.db.user.find({'_id': {'$in': event['attendees']}}, {'organisedEvents': 0}):
             usr['id'] = str(usr['_id'])
             del usr['_id']
 
