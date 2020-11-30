@@ -23,7 +23,6 @@ user_put_args = reqparse.RequestParser()
 user_put_args.add_argument('name', type=str)
 user_put_args.add_argument('email', type=str)
 user_put_args.add_argument('studentId', type=str)
-user_put_args.add_argument('password', type=str)
 user_put_args.add_argument('id', type=str)
 
 event_put_args = reqparse.RequestParser()
@@ -59,7 +58,7 @@ class User(Resource):
         args = user_put_args.parse_args()
         if len(list(mongo.db.user.find({'studentId': args['studentId']}))) == 0:
             args['events'] = []
-            organisers_f = open(f'{os.path.dirname(os.path.abspath(__file__))}\\organisers.txt', 'r')
+            organisers_f = open(f'{os.path.dirname(os.path.abspath(__file__))}/organisers.txt', 'r')
             organisers = [l.strip() for l in organisers_f.readlines()]
             args['permission'] = 0
 
