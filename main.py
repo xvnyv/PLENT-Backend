@@ -200,7 +200,7 @@ class Calendar(Resource):
 class Organised(Resource):
     def get(self):
         user_id = request.args.get("user_id")
-        user = mongo.db.user.find_one({'_id': ObjectId(user_id)})
+        user = mongo.db.user.find_one({'_id': ObjectId(user_id), 'permission': 1})
         events = []
         current_date = datetime.datetime.now(pytz.timezone('Asia/Singapore'))
 
