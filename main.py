@@ -129,6 +129,7 @@ class Event(Resource):
 
             event['clashString'] = ''
             event['attendees'] = [str(a) for a in event['attendees']]
+            event['creatorId'] = str(event['creatorId'])
             event_start_time = datetime.datetime(event['date'][2], event['date'][1], event['date'][0], event['startTime'][0], event['startTime'][1])
             event_end_time = datetime.datetime(event['date'][2], event['date'][1], event['date'][0], event['endTime'][0], event['endTime'][1])
         
