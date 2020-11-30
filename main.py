@@ -185,6 +185,7 @@ class Calendar(Resource):
             event_date = datetime.date(ev['date'][2], ev['date'][1], ev['date'][0])
 
             if event_date >= start_date and event_date <= end_date:
+                ev['creatorId'] = str(ev['creatorId'])
                 ev['id'] = str(ev['_id'])
                 del ev['_id']
                 ev = format_date_time(ev)
