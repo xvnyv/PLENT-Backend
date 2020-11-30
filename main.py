@@ -123,11 +123,12 @@ class Event(Resource):
     def get(self):
         event_id = request.args.get('event_id')
         user_id = request.args.get('user_id')
-        event = mongo.db.event.find_one({'_id': ObjectId(event_id)}, {'creatorId': 0, 'attendees': 0})
+        event = mongo.db.event.find_one({'_id': ObjectId(event_id)})
         if event != None:
             event['id'] = str(event['_id'])            
 
             event['clashString'] = ''
+            event['attendees'] = [str(a) for a in event['attendees']]
             event_start_time = datetime.datetime(event['date'][2], event['date'][1], event['date'][0], event['startTime'][0], event['startTime'][1])
             event_end_time = datetime.datetime(event['date'][2], event['date'][1], event['date'][0], event['endTime'][0], event['endTime'][1])
         
@@ -141,7 +142,6 @@ class Event(Resource):
                 
                 print(cur_ev_start_time)
                 print(cur_ev_end_time)
-                
                 if event['date'] == ev['date'] and ((cur_ev_start_time <= event_start_time and event_start_time <= cur_ev_end_time) or event['date'] == ev['date'] and (cur_ev_start_time <= event_end_time and cur_ev_end_time >= event_end_time)):
                     suffix = 'st' if cur_ev_end_time.day == 1 else 'nd' if cur_ev_end_time.day == 2 else 'rd' if cur_ev_end_time.day == 3 else 'th'
                     event['clashString'] = f'You have "{ev["title"]}" from {cur_ev_start_time.strftime("%#I.%M%p")} to {cur_ev_end_time.strftime("%#I.%M%p")} on {cur_ev_start_time.strftime("%b %#d")}{suffix}'
