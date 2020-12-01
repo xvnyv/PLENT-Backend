@@ -256,8 +256,16 @@ class Populate(Resource):
         mongo.db.event.update_one({'_id': events[0]['_id']}, {'$set': {'attendees': events[0]['attendees']}})
         mongo.db.event.update_one({'_id': events[2]['_id']}, {'$set': {'attendees': events[1]['attendees']}})
         mongo.db.event.update_one({'_id': events[3]['_id']}, {'$set': {'attendees': events[2]['attendees']}})
-    
 
+class Creatorinfo(Resource):
+    def get(self):
+        creator_id = request.args.get('user_id')
+        creator = mongo.db.user.find_one({'_id': ObjectId(user_id)})
+        creator['id'] = str(creator['_id'])
+        del creator['_id']
+        return(creator)
+
+    
 api.add_resource(User, '/user')
 api.add_resource(Event, '/event')
 api.add_resource(Events, '/events')
@@ -265,6 +273,7 @@ api.add_resource(Calendar, '/calendar')
 api.add_resource(Organised, '/organised')
 api.add_resource(Participants, '/participants')
 api.add_resource(Populate, '/populate')
+api.add_resource(Creatorinfo, '/creatorinfo')
 
 
 if __name__ == "__main__":
