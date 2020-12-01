@@ -260,7 +260,7 @@ class Populate(Resource):
 class Creatorinfo(Resource):
     def get(self):
         creator_id = request.args.get('user_id')
-        creator = mongo.db.user.find_one({'_id': ObjectId(user_id)})
+        creator = mongo.db.user.find_one({'_id': ObjectId(creator_id)})
         creator['id'] = str(creator['_id'])
         del creator['_id']
         return(creator)
